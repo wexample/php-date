@@ -102,7 +102,7 @@ class DateFormatter
 
         $pattern = self::INTL_SKELETONS[$format] ?? null;
 
-        if (null === $pattern && !isset(self::INTL_STYLES[$format])) {
+        if (null === $pattern && ! isset(self::INTL_STYLES[$format])) {
             // Not a name we know: the caller handed us an ICU pattern of their own.
             $formatter->setPattern($format);
         } elseif (null !== $pattern) {
