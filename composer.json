@@ -1,7 +1,7 @@
 {
   "name": "wexample/php-date",
   "description": "Date arithmetic, patterns and localized display, framework-agnostic",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "type": "library",
   "license": "MIT",
   "authors": [
