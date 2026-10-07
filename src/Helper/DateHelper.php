@@ -60,6 +60,8 @@ class DateHelper
     public const DISPLAY_DATE_TIME_SHORT = 'date_time_short';
     public const DISPLAY_DATE_TIME_FULL = 'date_time_full';
     public const DISPLAY_MONTH_YEAR = 'month_year';
+    public const DISPLAY_WEEK = 'week';
+    public const DISPLAY_WEEK_RANGE = 'week_range';
     public const DISPLAY_RELATIVE = 'relative';
     public const DISPLAY_AUTO = 'auto';
 
@@ -95,6 +97,9 @@ class DateHelper
 
     // Where `auto` stops counting backwards and shows a calendar date instead.
     public const RELATIVE_AUTO_LIMIT_SECONDS = 604800;
+
+    // An ISO 8601 week, as `<input type="week">` posts it: `2026-W29`.
+    public const WEEK_KEY_REGEX = '/^(\d{4})-W(\d{2})$/';
 
     public static function parse(
         DateTimeInterface|string|int|null $value
@@ -186,6 +191,58 @@ class DateHelper
     public static function getMonthKey(DateTimeInterface $dateTime): string
     {
         return $dateTime->format('Y-m');
+    }
+
+    // Weeks are ISO 8601 whatever the locale: Monday first, week 1 holding the
+    // first Thursday of the year. ICU's `w` follows the locale instead, and an
+    // English locale would then number from Sunday, which is not the week a
+    // planning counts in.
+
+    public static function getWeekNumber(DateTimeInterface $dateTime): int
+    {
+        return (int) $dateTime->format('W');
+    }
+
+    /**
+     * The year the week belongs to, which differs from the calendar year for the
+     * days of late December and early January that fall in a neighbouring week.
+     */
+    public static function getWeekYear(DateTimeInterface $dateTime): int
+    {
+        return (int) $dateTime->format('o');
+    }
+
+    public static function getWeekKey(DateTimeInterface $dateTime): string
+    {
+        return $dateTime->format('o-\WW');
+    }
+
+    /**
+     * The Monday of a `2026-W29` week, at midnight, or null when the key is not a
+     * week that exists.
+     */
+    public static function buildFromWeekKey(string $weekKey): ?DateTimeImmutable
+    {
+        if (! preg_match(self::WEEK_KEY_REGEX, $weekKey, $matches)) {
+            return null;
+        }
+
+        $monday = (new DateTimeImmutable())->setISODate((int) $matches[1], (int) $matches[2])->setTime(0, 0);
+
+        // `setISODate()` rolls week 53 of a 52-week year into the next one.
+        return self::getWeekKey($monday) === $weekKey ? $monday : null;
+    }
+
+    public static function startOfWeek(DateTimeInterface $date): DateTimeImmutable
+    {
+        return DateTimeImmutable::createFromInterface($date)
+            ->setISODate(self::getWeekYear($date), self::getWeekNumber($date))
+            ->setTime(0, 0);
+    }
+
+    public static function endOfWeek(DateTimeInterface $date): DateTimeImmutable
+    {
+        return self::startOfWeek($date)->modify('+6 days')->setTime(23, 59, 59);
     }
 
     public static function isInMonth(
@@ -304,6 +361,12 @@ class DateHelper
 
     public static function buildFromQueryStringDate(?string $value): ?DateTimeInterface
     {
+        if ($value && preg_match(self::WEEK_KEY_REGEX, $value)) {
+            $monday = self::buildFromWeekKey($value);
+
+            return $monday ? DateTime::createFromImmutable($monday) : null;
+        }
+
         if ($value) {
             foreach (self::QUERY_STRING_DATE_FORMATS as $format) {
                 $dateTime = DateTime::createFromFormat($format, $value);

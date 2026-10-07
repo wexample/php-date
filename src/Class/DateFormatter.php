@@ -26,6 +26,9 @@ class DateFormatter
 {
     public const RELATIVE_KEY_NOW = 'date.relative.now';
     public const RELATIVE_KEY_PREFIX = 'date.relative.';
+    // `%week%`, plus `%range%` for the range form: « Week %week% · %range% ».
+    public const WEEK_KEY = 'date.week.label';
+    public const WEEK_RANGE_KEY = 'date.week.range';
 
     private const INTL_STYLES = [
         DateHelper::DISPLAY_TIME => [IntlDateFormatter::NONE, IntlDateFormatter::SHORT],
@@ -42,6 +45,13 @@ class DateFormatter
     private const INTL_SKELETONS = [
         DateHelper::DISPLAY_MONTH_YEAR => 'MMMM y',
     ];
+
+    // The day and month of either end of a range, the year joining them only when
+    // the range crosses one.
+    private const RANGE_SKELETON = 'dMMM';
+    private const RANGE_SKELETON_YEAR = 'dMMMy';
+    private const RANGE_SEPARATOR_DAYS = '–';
+    private const RANGE_SEPARATOR_DATES = ' – ';
 
     private readonly Closure $translate;
     private readonly Closure $resolveLocale;
@@ -87,7 +97,101 @@ class DateFormatter
             return $this->formatRelative($date, $now, $locale);
         }
 
+        if (DateHelper::DISPLAY_WEEK === $format || DateHelper::DISPLAY_WEEK_RANGE === $format) {
+            return $this->formatWeek($date, DateHelper::DISPLAY_WEEK_RANGE === $format, $locale);
+        }
+
         return $this->formatAbsolute($date, $format, $locale);
+    }
+
+    /**
+     * The ISO week holding the date: « Week 29 », or « Week 29 · 14–20 Jul » with
+     * its Monday-to-Sunday bounds.
+     */
+    public function formatWeek(
+        DateTimeImmutable $date,
+        bool $withRange = false,
+        ?string $locale = null,
+    ): string {
+        $parameters = ['%week%' => DateHelper::getWeekNumber($date)];
+
+        if (! $withRange) {
+            return ($this->translate)(self::WEEK_KEY, $parameters, $locale);
+        }
+
+        $parameters['%range%'] = $this->formatDayRange(
+            DateHelper::startOfWeek($date),
+            DateHelper::endOfWeek($date),
+            $locale
+        );
+
+        return ($this->translate)(self::WEEK_RANGE_KEY, $parameters, $locale);
+    }
+
+    /**
+     * Two days as one range, what they share written once: « 14–20 Jul »,
+     * « 28 Jul – 3 Aug », « 29 Dec 2025 – 4 Jan 2026 », in the locale's order.
+     *
+     * PHP's `intl` has no binding for ICU's interval formatter, so the range is
+     * built from the locale's own day-and-month pattern.
+     */
+    public function formatDayRange(
+        DateTimeInterface $start,
+        DateTimeInterface $end,
+        ?string $locale = null,
+    ): string {
+        $locale ??= ($this->resolveLocale)();
+        $sameYear = $start->format('Y') === $end->format('Y');
+        $generator = new IntlDatePatternGenerator($locale);
+        $pattern = $generator->getBestPattern($sameYear ? self::RANGE_SKELETON : self::RANGE_SKELETON_YEAR);
+
+        if ($sameYear && $start->format('m') === $end->format('m')) {
+            // The end date written once, its day preceded by the first one:
+            // `d MMM` becomes `'14–'d MMM`, `MMM d` becomes `MMM '14–'d`.
+            $pattern = $this->prefixDayField(
+                $pattern,
+                $this->formatPattern($start, 'd', $locale).self::RANGE_SEPARATOR_DAYS
+            );
+
+            return $this->formatPattern($end, $pattern, $locale);
+        }
+
+        return $this->formatPattern($start, $pattern, $locale)
+            .self::RANGE_SEPARATOR_DATES
+            .$this->formatPattern($end, $pattern, $locale);
+    }
+
+    private function formatPattern(
+        DateTimeInterface $date,
+        string $pattern,
+        string $locale,
+    ): string {
+        $formatter = new IntlDateFormatter($locale, IntlDateFormatter::NONE, IntlDateFormatter::NONE);
+        $formatter->setPattern($pattern);
+
+        return $formatter->format($date);
+    }
+
+    /**
+     * Puts a literal before the day field of an ICU pattern, leaving the quoted
+     * literals of the pattern alone — Portuguese writes `d 'de' MMM`.
+     */
+    private function prefixDayField(
+        string $pattern,
+        string $literal,
+    ): string {
+        $quoted = "'".str_replace("'", "''", $literal)."'";
+        $parts = preg_split("/('(?:[^']|'')*')/", $pattern, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        // Even parts are the pattern itself, odd ones the quoted literals the split kept.
+        foreach ($parts as $index => $part) {
+            if (0 === $index % 2 && str_contains($part, 'd')) {
+                $parts[$index] = preg_replace('/d+/', $quoted.'$0', $part, 1);
+                break;
+            }
+        }
+
+        return implode('', $parts);
     }
 
     public function formatAbsolute(
