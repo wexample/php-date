@@ -187,6 +187,7 @@ class DateFormatter
         foreach ($parts as $index => $part) {
             if (0 === $index % 2 && str_contains($part, 'd')) {
                 $parts[$index] = preg_replace('/d+/', $quoted.'$0', $part, 1);
+
                 break;
             }
         }
