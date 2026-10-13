@@ -1,6 +1,6 @@
 # php-date
 
-Version: 2.1.0
+Version: 2.1.1
 
 The repository does not provide any concrete code that could be documented for now.
 
