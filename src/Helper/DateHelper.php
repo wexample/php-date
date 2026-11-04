@@ -53,6 +53,8 @@ class DateHelper
     // The vocabulary a display asks for, shared with the JavaScript side so that a
     // format named in a template means the same thing once the browser takes over.
     public const DISPLAY_TIME = 'time';
+    // The time to the second: a console, a log, anything read as it happens.
+    public const DISPLAY_TIME_SECONDS = 'time_seconds';
     public const DISPLAY_DATE = 'date';
     public const DISPLAY_DATE_SHORT = 'date_short';
     public const DISPLAY_DATE_LONG = 'date_long';

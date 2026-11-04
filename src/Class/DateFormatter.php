@@ -32,6 +32,7 @@ class DateFormatter
 
     private const INTL_STYLES = [
         DateHelper::DISPLAY_TIME => [IntlDateFormatter::NONE, IntlDateFormatter::SHORT],
+        DateHelper::DISPLAY_TIME_SECONDS => [IntlDateFormatter::NONE, IntlDateFormatter::MEDIUM],
         DateHelper::DISPLAY_DATE => [IntlDateFormatter::MEDIUM, IntlDateFormatter::NONE],
         DateHelper::DISPLAY_DATE_SHORT => [IntlDateFormatter::SHORT, IntlDateFormatter::NONE],
         DateHelper::DISPLAY_DATE_LONG => [IntlDateFormatter::LONG, IntlDateFormatter::NONE],

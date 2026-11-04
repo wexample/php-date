@@ -55,6 +55,29 @@ class DateFormatterTest extends TestCase
         $this->assertSame($expected, $this->createFormatter($locale)->format($day, $format));
     }
 
+    public static function timeProvider(): array
+    {
+        return [
+            'en time' => ['en', '2026-07-19 15:04:05', DateHelper::DISPLAY_TIME, "3:04\u{202F}PM"],
+            'en time to the second' => ['en', '2026-07-19 15:04:05', DateHelper::DISPLAY_TIME_SECONDS, "3:04:05\u{202F}PM"],
+            'fr time' => ['fr', '2026-07-19 15:04:05', DateHelper::DISPLAY_TIME, '15:04'],
+            'fr time to the second' => ['fr', '2026-07-19 15:04:05', DateHelper::DISPLAY_TIME_SECONDS, '15:04:05'],
+        ];
+    }
+
+    // The second shown where it matters — a console, a log — and left out
+    // elsewhere: both names, both faces, the same text. ICU sets a narrow
+    // no-break space before the day period.
+    #[DataProvider('timeProvider')]
+    public function testTime(
+        string $locale,
+        string $moment,
+        string $format,
+        string $expected,
+    ): void {
+        $this->assertSame($expected, $this->createFormatter($locale)->format($moment, $format));
+    }
+
     public function testDayRangeKeepsQuotedLiterals(): void
     {
         // Portuguese writes `d 'de' MMM`: the `d` inside the quotes is not the day.
