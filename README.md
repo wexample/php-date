@@ -1,6 +1,6 @@
 # php-date
 
-Version: 2.1.2
+Version: 3.0.0
 
 Date arithmetic, patterns and localized display, framework-agnostic
 
