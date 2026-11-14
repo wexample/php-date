@@ -371,7 +371,10 @@ class DateHelper
 
         if ($value) {
             foreach (self::QUERY_STRING_DATE_FORMATS as $format) {
-                $dateTime = DateTime::createFromFormat($format, $value);
+                // `!` starts the fields the value leaves out from the epoch
+                // instead of from now: `2024-02` read on the 30th would take
+                // that day and roll into March, then fail the check below.
+                $dateTime = DateTime::createFromFormat('!'.$format, $value);
                 if (false !== $dateTime
                     && $dateTime->format($format) == $value) {
                     // Check if day is missing

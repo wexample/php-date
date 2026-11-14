@@ -89,4 +89,39 @@ class DateFormatterTest extends TestCase
             )
         );
     }
+
+    public function testOneFormatterAnswersForSeveralLocalesAndFormats(): void
+    {
+        // The formatters are kept between calls: a second locale, a second
+        // format or a raw pattern must not be handed the first one's.
+        $formatter = $this->createFormatter('en');
+        $moment = '2026-07-19 15:04:05';
+
+        $this->assertSame("3:04\u{202F}PM", $formatter->format($moment, DateHelper::DISPLAY_TIME));
+        $this->assertSame('15:04', $formatter->format($moment, DateHelper::DISPLAY_TIME, 'fr'));
+        $this->assertSame('2026/07/19', $formatter->format($moment, 'yyyy/MM/dd'));
+        $this->assertSame('19.07.2026', $formatter->format($moment, 'dd.MM.yyyy'));
+        $this->assertSame('July 2026', $formatter->format($moment, DateHelper::DISPLAY_MONTH_YEAR));
+        $this->assertSame('juillet 2026', $formatter->format($moment, DateHelper::DISPLAY_MONTH_YEAR, 'fr'));
+        $this->assertSame("3:04\u{202F}PM", $formatter->format($moment, DateHelper::DISPLAY_TIME));
+    }
+
+    public function testAFormatterFollowsTheDefaultTimezone(): void
+    {
+        // A formatter reads the default timezone when it is built: one kept
+        // from before a change would print the hour of the former zone.
+        $formatter = $this->createFormatter('fr');
+        $moment = new DateTimeImmutable('2026-07-19 13:04:05', new \DateTimeZone('UTC'));
+        $timezone = date_default_timezone_get();
+
+        try {
+            date_default_timezone_set('UTC');
+            $this->assertSame('13:04', $formatter->format($moment, DateHelper::DISPLAY_TIME));
+
+            date_default_timezone_set('Europe/Paris');
+            $this->assertSame('15:04', $formatter->format($moment, DateHelper::DISPLAY_TIME));
+        } finally {
+            date_default_timezone_set($timezone);
+        }
+    }
 }

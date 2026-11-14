@@ -58,6 +58,19 @@ class DateFormatter
     private readonly Closure $resolveLocale;
 
     /**
+     * The formatters built so far, an ICU formatter being costly to open and
+     * the same handful of locales and formats asked for each date of a page.
+     * Keyed with the default timezone too, which a formatter reads once, when
+     * it is built.
+     *
+     * @var array<string, IntlDateFormatter>
+     */
+    private array $formatters = [];
+
+    /** @var array<string, IntlDatePatternGenerator> */
+    private array $patternGenerators = [];
+
+    /**
      * @param callable $translate `fn(string $key, array $parameters, ?string $locale): string`,
      *                            the parameters holding `%count%` where the wording counts
      * @param callable $resolveLocale `fn(): string`, asked whenever a call names no locale
@@ -143,8 +156,7 @@ class DateFormatter
     ): string {
         $locale ??= ($this->resolveLocale)();
         $sameYear = $start->format('Y') === $end->format('Y');
-        $generator = new IntlDatePatternGenerator($locale);
-        $pattern = $generator->getBestPattern($sameYear ? self::RANGE_SKELETON : self::RANGE_SKELETON_YEAR);
+        $pattern = $this->getPatternGenerator($locale)->getBestPattern($sameYear ? self::RANGE_SKELETON : self::RANGE_SKELETON_YEAR);
 
         if ($sameYear && $start->format('m') === $end->format('m')) {
             // The end date written once, its day preceded by the first one:
@@ -167,10 +179,34 @@ class DateFormatter
         string $pattern,
         string $locale,
     ): string {
-        $formatter = new IntlDateFormatter($locale, IntlDateFormatter::NONE, IntlDateFormatter::NONE);
-        $formatter->setPattern($pattern);
+        return $this->getFormatter($locale, IntlDateFormatter::NONE, IntlDateFormatter::NONE, $pattern)
+            ->format($date);
+    }
 
-        return $formatter->format($date);
+    private function getFormatter(
+        string $locale,
+        int $dateType,
+        int $timeType,
+        ?string $pattern,
+    ): IntlDateFormatter {
+        $key = json_encode([$locale, $dateType, $timeType, $pattern, date_default_timezone_get()]);
+
+        if (! isset($this->formatters[$key])) {
+            $formatter = new IntlDateFormatter($locale, $dateType, $timeType);
+
+            if (null !== $pattern) {
+                $formatter->setPattern($pattern);
+            }
+
+            $this->formatters[$key] = $formatter;
+        }
+
+        return $this->formatters[$key];
+    }
+
+    private function getPatternGenerator(string $locale): IntlDatePatternGenerator
+    {
+        return $this->patternGenerators[$locale] ??= new IntlDatePatternGenerator($locale);
     }
 
     /**
@@ -204,18 +240,16 @@ class DateFormatter
         $locale ??= ($this->resolveLocale)();
         [$dateType, $timeType] = self::INTL_STYLES[$format] ?? [IntlDateFormatter::NONE, IntlDateFormatter::NONE];
 
-        $formatter = new IntlDateFormatter($locale, $dateType, $timeType);
-
         $pattern = self::INTL_SKELETONS[$format] ?? null;
 
         if (null === $pattern && ! isset(self::INTL_STYLES[$format])) {
             // Not a name we know: the caller handed us an ICU pattern of their own.
-            $formatter->setPattern($format);
+            $pattern = $format;
         } elseif (null !== $pattern) {
-            $formatter->setPattern((new IntlDatePatternGenerator($locale))->getBestPattern($pattern));
+            $pattern = $this->getPatternGenerator($locale)->getBestPattern($pattern);
         }
 
-        return $formatter->format($date);
+        return $this->getFormatter($locale, $dateType, $timeType, $pattern)->format($date);
     }
 
     public function formatRelative(

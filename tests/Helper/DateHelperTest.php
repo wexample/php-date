@@ -59,4 +59,38 @@ class DateHelperTest extends TestCase
             DateHelper::buildFromQueryStringDate('2026-07')->format('Y-m-d H:i:s')
         );
     }
+
+    public static function queryStringProvider(): array
+    {
+        return [
+            // Read on the 29th to the 31st, a month without its day used to
+            // take today's and roll over: February into March.
+            'february' => ['2023-02', '2023-02-01 00:00:00'],
+            'leap february' => ['2024-02', '2024-02-01 00:00:00'],
+            'thirty days' => ['2024-04', '2024-04-01 00:00:00'],
+            'year' => ['2024', '2024-01-01 00:00:00'],
+            'day' => ['2024-02-29', '2024-02-29 00:00:00'],
+            'hour' => ['2024-02-29 13', '2024-02-29 13:00:00'],
+            'minute' => ['2024-02-29 13:45', '2024-02-29 13:45:00'],
+            'second' => ['2024-02-29 13:45:12', '2024-02-29 13:45:12'],
+        ];
+    }
+
+    #[DataProvider('queryStringProvider')]
+    public function testQueryStringDateLeavesOutWhatItDoesNotSay(string $value, string $expected): void
+    {
+        $date = DateHelper::buildFromQueryStringDate($value);
+
+        $this->assertNotNull($date);
+        $this->assertSame($expected, $date->format('Y-m-d H:i:s'));
+        $this->assertSame('000000', $date->format('u'));
+    }
+
+    public function testQueryStringDateRejectsWhatIsNoDate(): void
+    {
+        $this->assertNull(DateHelper::buildFromQueryStringDate('2023-02-30'));
+        $this->assertNull(DateHelper::buildFromQueryStringDate('2024-13'));
+        $this->assertNull(DateHelper::buildFromQueryStringDate(''));
+        $this->assertNull(DateHelper::buildFromQueryStringDate(null));
+    }
 }
